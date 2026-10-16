@@ -70,11 +70,15 @@ def update_pkgbuild(pkgbuild_path: Path, new_ver: str, new_commit: str, new_sha:
     content = re.sub(r"^pkgver=.*$", f"pkgver={new_ver}", content, flags=re.MULTILINE)
     content = re.sub(r"^_commit=.*$", f"_commit={new_commit}", content, flags=re.MULTILINE)
     content = re.sub(r"^pkgrel=.*$", "pkgrel=1", content, flags=re.MULTILINE)
-    content = re.sub(
-        r"sha256sums=\('[0-9a-f]{64}'\)",
+    new_content, count = re.subn(
+        r"sha256sums=\(\s*'[^']+'\s*\)",
         f"sha256sums=('{new_sha}')",
         content,
+        flags=re.DOTALL,
     )
+    if count == 0:
+        raise ValueError("Could not find and replace sha256sums in PKGBUILD")
+    content = new_content
     pkgbuild_path.write_text(content, encoding="utf-8")
     print(f"Updated {pkgbuild_path} to {new_ver}-{new_commit} (sha256: {new_sha})")
 

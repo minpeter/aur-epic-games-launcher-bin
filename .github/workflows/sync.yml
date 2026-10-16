@@ -42,11 +42,10 @@ jobs:
       - name: Generate .SRCINFO using Arch Linux container
         if: steps.upstream.outputs.updated == 'true'
         run: |
-          docker run --rm -v "$PWD":/pkg -w /pkg archlinux:base-devel bash -c '
+          docker run --rm -v "$PWD/PKGBUILD":/tmp/PKGBUILD:ro archlinux:base-devel bash -c '
             useradd -m builder
-            chown -R builder .
-            su builder -c "makepkg --printsrcinfo" > .SRCINFO
-          '
+            su builder -c "cd /home/builder && cp /tmp/PKGBUILD . && makepkg --printsrcinfo"
+          ' > .SRCINFO
 
       - name: Commit and push changes to GitHub
         if: steps.upstream.outputs.updated == 'true'
@@ -58,13 +57,12 @@ jobs:
           git push origin master
 
       - name: Deploy to AUR
-        if: steps.upstream.outputs.updated == 'true' && env.AUR_KEY != ''
+        if: steps.upstream.outputs.updated == 'true' && secrets.AUR_SSH_PRIVATE_KEY != ''
         uses: KSXGitHub/github-actions-deploy-aur@v3
-        env:
-          AUR_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
         with:
           pkgname: epic-games-launcher-bin
           pkgbuild: ./PKGBUILD
           commit_username: minpeter
           commit_email: kali2005611@gmail.com
+          commit_message: "Update to ${{ steps.upstream.outputs.new_version }}-1"
           ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}

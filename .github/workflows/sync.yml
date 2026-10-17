@@ -20,6 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
 
     steps:
       - name: Checkout repository
@@ -57,7 +59,7 @@ jobs:
           git push origin master
 
       - name: Deploy to AUR
-        if: steps.upstream.outputs.updated == 'true' && secrets.AUR_SSH_PRIVATE_KEY != ''
+        if: steps.upstream.outputs.updated == 'true' && env.AUR_SSH_PRIVATE_KEY != ''
         uses: KSXGitHub/github-actions-deploy-aur@v3
         with:
           pkgname: epic-games-launcher-bin
@@ -65,4 +67,4 @@ jobs:
           commit_username: minpeter
           commit_email: kali2005611@gmail.com
           commit_message: "Update to ${{ steps.upstream.outputs.new_version }}-1"
-          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          ssh_private_key: ${{ env.AUR_SSH_PRIVATE_KEY }}

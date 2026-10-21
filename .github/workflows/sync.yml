@@ -24,6 +24,13 @@ jobs:
       AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
 
     steps:
+      - name: Require AUR deploy key
+        run: |
+          if [ -z "$AUR_SSH_PRIVATE_KEY" ]; then
+            echo "::error::AUR_SSH_PRIVATE_KEY secret is not set; AUR cannot be updated."
+            exit 1
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -41,30 +48,52 @@ jobs:
           fi
           python3 scripts/check-upstream.py $FORCE_FLAG
 
-      - name: Generate .SRCINFO using Arch Linux container
-        if: steps.upstream.outputs.updated == 'true'
+      # Compare against what the AUR actually serves rather than the last GitHub
+      # commit, so a failed or skipped AUR push is retried on the next run.
+      - name: Detect AUR drift
+        id: aur
         run: |
-          docker run --rm -v "$PWD/PKGBUILD":/tmp/PKGBUILD:ro archlinux:base-devel bash -c '
-            useradd -m builder
-            su builder -c "cd /home/builder && cp /tmp/PKGBUILD . && makepkg --printsrcinfo"
-          ' > .SRCINFO
+          git clone --depth 1 https://aur.archlinux.org/epic-games-launcher-bin.git "$RUNNER_TEMP/aur"
+          if cmp -s PKGBUILD "$RUNNER_TEMP/aur/PKGBUILD"; then
+            echo "AUR PKGBUILD matches."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          else
+            diff -u "$RUNNER_TEMP/aur/PKGBUILD" PKGBUILD || true
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          fi
+          pkgver=$(sed -n 's/^pkgver=//p' PKGBUILD)
+          pkgrel=$(sed -n 's/^pkgrel=//p' PKGBUILD)
+          echo "version=${pkgver}-${pkgrel}" >> "$GITHUB_OUTPUT"
 
-      - name: Commit and push changes to GitHub
-        if: steps.upstream.outputs.updated == 'true'
+      - name: Build package and generate .SRCINFO in Arch Linux container
+        if: steps.upstream.outputs.updated == 'true' || steps.aur.outputs.deploy == 'true'
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add PKGBUILD .SRCINFO
-          git commit -m "Update to ${{ steps.upstream.outputs.new_version }}-1"
-          git push origin master
+          docker run --rm -v "$PWD":/work:ro archlinux:base-devel \
+            bash /work/scripts/arch-build.sh > "$RUNNER_TEMP/SRCINFO"
+          mv "$RUNNER_TEMP/SRCINFO" .SRCINFO
 
       - name: Deploy to AUR
-        if: steps.upstream.outputs.updated == 'true' && env.AUR_SSH_PRIVATE_KEY != ''
+        if: steps.aur.outputs.deploy == 'true'
         uses: KSXGitHub/github-actions-deploy-aur@v3
         with:
           pkgname: epic-games-launcher-bin
           pkgbuild: ./PKGBUILD
           commit_username: minpeter
           commit_email: kali2005611@gmail.com
-          commit_message: "Update to ${{ steps.upstream.outputs.new_version }}-1"
+          commit_message: "Update to ${{ steps.aur.outputs.version }}"
           ssh_private_key: ${{ env.AUR_SSH_PRIVATE_KEY }}
+
+      # Runs after the AUR deploy: if the AUR push fails, GitHub keeps the old
+      # PKGBUILD and the next run redoes the whole update.
+      - name: Commit and push changes to GitHub
+        if: steps.upstream.outputs.updated == 'true' || steps.aur.outputs.deploy == 'true'
+        run: |
+          if git diff --quiet -- PKGBUILD .SRCINFO; then
+            echo "GitHub already up to date."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add PKGBUILD .SRCINFO
+          git commit -m "Update to ${{ steps.aur.outputs.version }}"
+          git push origin master

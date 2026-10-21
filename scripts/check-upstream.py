@@ -65,11 +65,11 @@ def compute_sha256(url: str) -> str:
     return hasher.hexdigest()
 
 
-def update_pkgbuild(pkgbuild_path: Path, new_ver: str, new_commit: str, new_sha: str):
+def update_pkgbuild(pkgbuild_path: Path, new_ver: str, new_commit: str, new_rel: int, new_sha: str):
     content = pkgbuild_path.read_text(encoding="utf-8")
     content = re.sub(r"^pkgver=.*$", f"pkgver={new_ver}", content, flags=re.MULTILINE)
     content = re.sub(r"^_commit=.*$", f"_commit={new_commit}", content, flags=re.MULTILINE)
-    content = re.sub(r"^pkgrel=.*$", "pkgrel=1", content, flags=re.MULTILINE)
+    content = re.sub(r"^pkgrel=.*$", f"pkgrel={new_rel}", content, flags=re.MULTILINE)
     new_content, count = re.subn(
         r"sha256sums=\(\s*'[^']+'\s*\)",
         f"sha256sums=('{new_sha}')",
@@ -80,7 +80,7 @@ def update_pkgbuild(pkgbuild_path: Path, new_ver: str, new_commit: str, new_sha:
         raise ValueError("Could not find and replace sha256sums in PKGBUILD")
     content = new_content
     pkgbuild_path.write_text(content, encoding="utf-8")
-    print(f"Updated {pkgbuild_path} to {new_ver}-{new_commit} (sha256: {new_sha})")
+    print(f"Updated {pkgbuild_path} to {new_ver}-{new_rel} ({new_commit}, sha256: {new_sha})")
 
 
 def set_github_output(name: str, value: str):
@@ -108,9 +108,18 @@ def main():
         set_github_output("updated", "false")
         return 0
 
-    print(f"Update available: {curr_ver}+{curr_commit} -> {latest_ver}+{latest_commit}")
+    if latest_ver != curr_ver:
+        new_rel = 1
+    elif latest_commit != curr_commit:
+        # Same version rebuilt from a different commit: bump pkgrel so AUR
+        # helpers see a newer version and offer the update.
+        new_rel = curr_rel + 1
+    else:
+        new_rel = curr_rel
+
+    print(f"Update available: {curr_ver}-{curr_rel}+{curr_commit} -> {latest_ver}-{new_rel}+{latest_commit}")
     set_github_output("updated", "true")
-    set_github_output("new_version", latest_ver)
+    set_github_output("new_version", f"{latest_ver}-{new_rel}")
     set_github_output("new_commit", latest_commit)
 
     if args.dry_run:
@@ -121,7 +130,7 @@ def main():
     new_sha = compute_sha256(download_url)
     set_github_output("new_sha256", new_sha)
 
-    update_pkgbuild(args.pkgbuild, latest_ver, latest_commit, new_sha)
+    update_pkgbuild(args.pkgbuild, latest_ver, latest_commit, new_rel, new_sha)
     return 0
 
 

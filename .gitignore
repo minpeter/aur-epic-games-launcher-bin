@@ -5,4 +5,5 @@ pkg/
 src/
 squashfs-root/
 *.AppImage
+*.deb
 *.part

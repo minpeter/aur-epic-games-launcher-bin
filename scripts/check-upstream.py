@@ -12,9 +12,9 @@ import urllib.request
 from pathlib import Path
 
 DOWNLOAD_HOST = "launcher-public-service-prod06.ol.epicgames.com"
-DOWNLOAD_PATH = "/launcher/api/installer/download/EpicGamesLauncher-x86_64.AppImage"
+DOWNLOAD_PATH = "/launcher/api/installer/download/EpicGamesLauncher-x86_64.deb"
 URL_PATTERN = re.compile(
-    r"Builds/EGLv2/(?P<version>[0-9.]+)(?:%2B|\+)(?P<commit>g[0-9a-f]+)/Linux/EpicGamesLauncher-x86_64\.AppImage"
+    r"Builds/EGLv2/(?P<version>[0-9.]+)(?:%2B|\+)(?P<commit>g[0-9a-f]+)/Linux/EpicGamesLauncher-x86_64\.deb"
 )
 
 
@@ -126,7 +126,7 @@ def main():
         print("Dry run requested; stopping before download.")
         return 0
 
-    download_url = f"https://content-download-egs.distro.on.epicgames.com/Builds/EGLv2/{latest_ver}%2B{latest_commit}/Linux/EpicGamesLauncher-x86_64.AppImage"
+    download_url = f"https://content-download-egs.distro.on.epicgames.com/Builds/EGLv2/{latest_ver}%2B{latest_commit}/Linux/EpicGamesLauncher-x86_64.deb"
     new_sha = compute_sha256(download_url)
     set_github_output("new_sha256", new_sha)
 

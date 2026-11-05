@@ -54,7 +54,7 @@ The launcher requires `libayatana-appindicator` to initialize its system tray in
 
 ## Automation
 
-This repository automatically tracks upstream Linux AppImage releases from Epic Games every 6 hours via GitHub Actions. Each run:
+This repository automatically tracks upstream Linux `.deb` releases from Epic Games every 6 hours via GitHub Actions. Each run:
 1. Fails immediately if the `AUR_SSH_PRIVATE_KEY` secret is missing
 2. Checks for a new upstream release and, if found, updates `pkgver`, `_commit` and the SHA-256 digest in `PKGBUILD`
 3. Compares `PKGBUILD` with the one currently on the [AUR](https://aur.archlinux.org/packages/epic-games-launcher-bin); any difference (new release, manual change, or a previously failed AUR push) triggers a deploy
